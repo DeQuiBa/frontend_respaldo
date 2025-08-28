@@ -8,15 +8,47 @@ import Link from "next/link";
 import Header from "@/components/navbar/header";
 import { useState, useEffect } from "react";
 import Footer from "@/components/footer/footer";
+import api from "@/services/api";
+import { useRouter } from "next/navigation";
+import axios from "axios"; // 🔹 para usar axios.isAxiosError
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [isVisible, setIsVisible] = useState(false);
+  const [loading, setLoading] = useState(false); // 🔹 añadido
+  const [error, setError] = useState(""); // 🔹 añadido
+  const router = useRouter(); // 🔹 añadido
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await api.post("/auth/login", {
+        correo: email,
+        password,
+      });
+
+      // Guardar token y usuario
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      // Redirigir
+      router.push("/dashboard/home");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || "Error en el login");
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Error desconocido");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -84,6 +116,13 @@ export default function LoginPage() {
               <p className="mt-2 text-gray-400 text-sm">Ingresa tus credenciales para continuar</p>
             </div>
 
+            {/* 🔹 Mostrar error si existe */}
+            {error && (
+              <div className="bg-red-500/20 text-red-400 text-sm rounded-md p-2 mb-4">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <FloatingInput
                 placeholder="Correo electrónico"
@@ -113,9 +152,10 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 size="lg"
+                disabled={loading}
                 className="w-full bg-transparent hover:bg-gradient-to-r hover:from-cyan-600 hover:to-blue-600 text-cyan-400 hover:text-white font-bold py-3 px-8 rounded-2xl transition-all duration-500 ease-in-out transform hover:scale-105 hover:shadow-2xl border-2 border-cyan-500/50"
               >
-                Iniciar sesión
+                {loading ? "Ingresando..." : "Iniciar sesión"}
               </Button>
             </form>
 
@@ -139,7 +179,7 @@ export default function LoginPage() {
           />
         </div>
 
-          {/* Footer */}
+        {/* Footer */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Footer />
         </div>

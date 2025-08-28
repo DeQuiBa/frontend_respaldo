@@ -9,34 +9,46 @@ import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/navbar/header";
 import Footer from "@/components/footer/footer";
-
-
-const comites = [
-  "EVENTOS ACADÉMICOS",
-  "ECONOMÍA - LOGÍSTICA",
-  "REINADO SISTÉMICO",
-  "CIENTÍFICO",
-  "COMPARSA SISTÉMICA",
-  "EDITORIAL",
-  "ACTIVIDADES SOCIALES",
-  "JUEGOS DEPORTIVOS",
-  "CONVERSATORIO DE INVESTIGACIÓN",
-  "IMAGEN INSTITUCIONAL",
-  "DIFUSIÓN Y PROMOCIÓN",
-  "ACADÉMICO",
-  "GENERAL",
-];
+import api from "@/services/api";
+import Modal from "@/components/modal/okandfailModal";
 
 export default function Register() {
   const [isVisible, setIsVisible] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
-  const [search, setSearch] = useState("");
-  const [selectedComite, setSelectedComite] = useState("");
 
-  const filteredComites = comites.filter((c) =>
-    c.toLowerCase().includes(search.toLowerCase())
-  );
+  // --- Modal ---
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
 
+  // --- Estados para comités ---
+  const [comites, setComites] = useState<{ id: number; nombre: string }[]>([]);
+  const [selectedComite, setSelectedComite] = useState<{ id: number; nombre: string } | null>(null);
+
+  // --- Estados para formulario ---
+  const [formData, setFormData] = useState({
+    nombres: "",
+    apellidos: "",
+    email: "",
+    password: "",
+    fk_rol: 2,
+  });
+
+  const [errorEmail, setErrorEmail] = useState("");
+
+  // Traer comités desde API
+  useEffect(() => {
+    const fetchComites = async () => {
+      try {
+        const res = await api.get("/comite");
+        setComites(res.data.comites);
+      } catch (err) {
+        console.error("Error cargando comités:", err);
+      }
+    };
+    fetchComites();
+  }, []);
+
+  // Animación de fondo
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 200);
 
@@ -51,6 +63,51 @@ export default function Register() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  // Validación de correo
+  const validarEmail = (email: string) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
+  // --- Enviar formulario ---
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validarEmail(formData.email)) {
+      setErrorEmail("Coloque un correo válido");
+      return;
+    }
+    setErrorEmail("");
+
+    if (!selectedComite) {
+      setModalMessage("Debe seleccionar un comité ❌");
+      setShowModal(true);
+      return;
+    }
+
+    try {
+      await api.post("/register", {
+        nombres: formData.nombres,
+        apellidos: formData.apellidos,
+        email: formData.email,
+        password: formData.password,
+        fk_rol: formData.fk_rol,
+        fk_comite: selectedComite.id,
+      });
+
+      setModalMessage("Usuario registrado con éxito ✅");
+      setShowModal(true);
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (err: unknown) {
+      setModalMessage("Error al registrar usuario ❌");
+      setShowModal(true);
+      console.error("Error registrando usuario:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 relative overflow-hidden text-white">
       {/* Fondo animado */}
@@ -64,23 +121,11 @@ export default function Register() {
             `,
           }}
         />
-        {/* Figuras geométricas animadas */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-16 left-16 w-72 h-72 border border-cyan-500/40 rotate-45 animate-pulse"></div>
           <div className="absolute bottom-16 right-16 w-52 h-52 border border-blue-500/40 rotate-12 animate-bounce"></div>
           <div className="absolute top-1/2 left-1/4 w-28 h-28 border-2 border-purple-500/50 rounded-full animate-spin"></div>
         </div>
-        {/* Grid técnico */}
-        <div
-          className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(14, 165, 233, 0.12) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(14, 165, 233, 0.12) 1px, transparent 1px)
-            `,
-            backgroundSize: "50px 50px",
-          }}
-        />
       </div>
 
       <Header />
@@ -115,12 +160,60 @@ export default function Register() {
             </div>
 
             {/* Formulario */}
-            <form className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FloatingInput placeholder="Nombre" id="firstName" name="firstName" type="text" required />
-              <FloatingInput placeholder="Apellidos" id="lastName" name="lastName" type="text" required />
-              <FloatingInput placeholder="Correo electrónico" id="email" name="email" type="email" required />
-              <FloatingInput placeholder="Contraseña" id="password" name="password" type="password" required />
-              <FloatingInput placeholder="Confirmar contraseña" id="confirmPassword" name="confirmPassword" type="password" required />
+            <form
+              onSubmit={handleSubmit}
+              className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <FloatingInput
+                placeholder="Nombre"
+                id="firstName"
+                name="nombres"
+                type="text"
+                required
+                value={formData.nombres}
+                onChange={(e) =>
+                  setFormData({ ...formData, nombres: e.target.value.toUpperCase() })
+                }
+              />
+              <FloatingInput
+                placeholder="Apellidos"
+                id="lastName"
+                name="apellidos"
+                type="text"
+                required
+                value={formData.apellidos}
+                onChange={(e) =>
+                  setFormData({ ...formData, apellidos: e.target.value.toUpperCase() })
+                }
+              />
+
+              <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <FloatingInput
+                    placeholder="Correo electrónico"
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                  {errorEmail && (
+                    <p className="mt-1 text-red-500 text-sm">{errorEmail}</p>
+                  )}
+                </div>
+                <FloatingInput
+                  placeholder="Contraseña"
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                />
+              </div>
 
               {/* Select comité */}
               <div className="relative col-span-1 md:col-span-2">
@@ -128,41 +221,24 @@ export default function Register() {
                   <Users className="w-4 h-4 text-cyan-400" />
                   Selecciona tu comité
                 </div>
-                <input
-                  type="text"
-                  value={search || selectedComite}
+                <select
+                  required
+                  value={selectedComite?.id || ""}
                   onChange={(e) => {
-                    setSearch(e.target.value);
-                    setSelectedComite("");
+                    const comite = comites.find((c) => c.id === Number(e.target.value));
+                    setSelectedComite(comite || null);
                   }}
-                  placeholder="Buscar comité..."
-                  className="w-full px-4 py-3 rounded-xl bg-gray-900/70 border border-cyan-500/40 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 placeholder-gray-500 transition"
-                />
-                {search && (
-                  <ul className="absolute z-20 mt-1 w-full bg-gray-800/90 backdrop-blur-xl border border-cyan-500/30 rounded-xl max-h-44 overflow-y-auto shadow-lg">
-                    {filteredComites.length > 0 ? (
-                      filteredComites.map((comite) => (
-                        <li
-                          key={comite}
-                          onClick={() => {
-                            setSelectedComite(comite);
-                            setSearch("");
-                          }}
-                          className="px-4 py-2 text-sm text-gray-200 hover:bg-cyan-600/40 cursor-pointer transition"
-                        >
-                          {comite}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-4 py-2 text-sm text-gray-400">
-                        No se encontró ningún comité
-                      </li>
-                    )}
-                  </ul>
-                )}
+                  className="w-full px-4 py-3 rounded-xl bg-gray-900/70 border border-cyan-500/40 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition"
+                >
+                  <option value="">-- Selecciona un comité --</option>
+                  {comites.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Botón */}
               <div className="pt-4 col-span-1 md:col-span-2">
                 <Button
                   type="submit"
@@ -174,7 +250,6 @@ export default function Register() {
               </div>
             </form>
 
-            {/* Login */}
             <p className="mt-6 text-center text-sm text-gray-400 col-span-2">
               ¿Ya tienes una cuenta?{" "}
               <Link
@@ -187,11 +262,20 @@ export default function Register() {
           </div>
         </section>
 
-        {/* Footer */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Footer />
         </div>
       </main>
+
+      {/* Modal con animación */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={modalMessage.includes("éxito") ? "Éxito" : "Error"}
+        message={modalMessage}
+        success={modalMessage.includes("éxito")}
+      />
+
     </div>
   );
 }
