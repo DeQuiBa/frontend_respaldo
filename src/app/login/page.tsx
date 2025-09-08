@@ -10,16 +10,55 @@ import { useState, useEffect } from "react";
 import Footer from "@/components/footer/footer";
 import api from "@/services/api";
 import { useRouter } from "next/navigation";
-import axios from "axios"; // 🔹 para usar axios.isAxiosError
+import axios from "axios"; // para usar axios.isAxiosError
+
+// 🔹 Tipado de la respuesta del login
+interface LoginResponse {
+  user: {
+    id: number;
+    nombre: string;
+    rol: string;
+    rolId: number;
+    correo: string;
+  };
+  token: string;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [isVisible, setIsVisible] = useState(false);
-  const [loading, setLoading] = useState(false); // 🔹 añadido
-  const [error, setError] = useState(""); // 🔹 añadido
-  const router = useRouter(); // 🔹 añadido
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true); // nuevo estado
+  const router = useRouter();
+
+  // 🔹 Verificar si el usuario ya está logeado
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userData = localStorage.getItem("user");
+
+    if (token && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user.rolId === 1) {
+          router.replace("/dashboard/admin");
+          return;
+        } else if (user.rolId === 2) {
+          router.replace("/dashboard/user");
+          return;
+        } else {
+          router.replace("/login"); // fallback
+          return;
+        }
+      } catch {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
+    }
+    setCheckingAuth(false); // ya verificamos, mostrar login
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,17 +66,25 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await api.post("/auth/login", {
-        correo: email,
+      const res = await api.post<LoginResponse>("/auth/login", {
+        email,
         password,
       });
 
-      // Guardar token y usuario
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      const { user, token } = res.data;
 
-      // Redirigir
-      router.push("/dashboard/home");
+      // Guardar token y usuario
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Redirigir según rol
+      if (user.rolId === 1) {
+        router.replace("/dashboard/admin");
+      } else if (user.rolId === 2) {
+        router.replace("/dashboard/user");
+      } else {
+        router.replace("/login"); // fallback
+      }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.error || "Error en el login");
@@ -51,6 +98,7 @@ export default function LoginPage() {
     }
   };
 
+  // 🔹 Animación de fondo
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 200);
 
@@ -64,6 +112,15 @@ export default function LoginPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  // 🔹 Mientras verifica la sesión, no mostrar login
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <p className="text-xl">Verificando sesión...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -116,7 +173,7 @@ export default function LoginPage() {
               <p className="mt-2 text-gray-400 text-sm">Ingresa tus credenciales para continuar</p>
             </div>
 
-            {/* 🔹 Mostrar error si existe */}
+            {/* Mostrar error si existe */}
             {error && (
               <div className="bg-red-500/20 text-red-400 text-sm rounded-md p-2 mb-4">
                 {error}

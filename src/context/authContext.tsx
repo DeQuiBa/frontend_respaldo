@@ -1,33 +1,27 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import api from '@/services/api';
-
-interface AuthContextType {
-  user: UserData | null;
-  token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  setUser: (user: UserData | null) => void; // Agregamos setUser
-  loading: boolean;
-  isAuthenticated: boolean;
-}
+import api from "@/services/api";
 
 interface UserData {
   id: number;
   nombre: string;
-  primer_nombre: string;
-  segundo_nombre: string;
-  tercer_nombre: string;
-  apellido_paterno: string;
-  apellido_materno: string;
-  correo: string;
-  celular: string;
   rol: string;
   rolId: number;
-  estado: string;
+  correo: string;
+}
+
+interface AuthContextType {
+  user: UserData | null;
+  token: string | null;
+  setUser: (user: UserData | null) => void;
+  setToken: (token: string | null) => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,33 +34,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('token');
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
 
-      if (storedToken) {
+      if (storedToken && storedUser) {
         try {
-          // Verificar token
-          const verifyResponse = await api.get('/auth/verify', {
-            headers: { Authorization: `Bearer ${storedToken}` }
-          });
-
-          if (verifyResponse.data.valid) {
-            // Obtener usuario
-            const userResponse = await api.get('/usuarios/me', {
-              headers: { Authorization: `Bearer ${storedToken}` }
-            });
-
-            setToken(storedToken);
-            setUser(userResponse.data);
-            api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-          } else {
-            localStorage.removeItem('token');
-          }
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setToken(storedToken);
+          api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
         } catch (err) {
-          localStorage.removeItem('token');
-          console.error('Error en verificación o carga de usuario:', err);
+          console.error("Error al cargar usuario del storage", err);
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
         }
       }
-
       setLoading(false);
     };
 
@@ -75,57 +57,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const { data } = await api.post('/auth/login', {
-        correo: email,
-        password
-      });
+      const { data } = await api.post("/auth/login", { correo: email, password });
+      const user = data.user;
+      const token = data.token;
 
-      const { token, user } = data;
-
-      localStorage.setItem('token', token);
-      setToken(token);
       setUser(user);
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setToken(token);
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      router.push('/dashboard/home');
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      if (user.rolId === 1) router.replace("/dashboard/admin");
+      else if (user.rolId === 2) router.replace("/dashboard/user");
+      else router.replace("/login");
     } catch (err) {
-      console.error('Login error:', err);
+      console.error(err);
       toast.error("Credenciales inválidas");
-      throw new Error('Credenciales inválidas');
+      throw new Error("Credenciales inválidas");
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    sessionStorage.clear(); // Agregar esto también
-    setToken(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
-    delete api.defaults.headers.common['Authorization'];
-    toast.success("Sesión cerrada con éxito");
-    window.location.href = '/login';
-  };
-
-  const value = {
-    user,
-    token,
-    login,
-    logout,
-    setUser, // Exponemos setUser
-    loading,
-    isAuthenticated: !!user && !!token,
+    setToken(null);
+    delete api.defaults.headers.common["Authorization"];
+    toast.success("Sesión cerrada");
+    router.push("/login");
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        setUser,
+        setToken,
+        login,
+        logout,
+        isAuthenticated: !!user && !!token,
+        loading,
+      }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };

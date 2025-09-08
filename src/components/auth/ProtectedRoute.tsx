@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { useAuth } from '@/context/authContext';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/authContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,22 +10,23 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { isAuthenticated, user, loading } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!isAuthenticated) {
-        router.replace('/'); 
-      } else if (allowedRoles && user && !allowedRoles.includes(user.rolId)) {
-        router.replace('/dashboard/home'); 
-      }
-    }
+    if (loading) return;
+
+    if (!isAuthenticated) router.replace("/login");
+    else if (user && allowedRoles && !allowedRoles.includes(user.rolId))
+      router.replace("/login");
   }, [loading, isAuthenticated, user, allowedRoles, router]);
 
-
-  if (loading || !isAuthenticated || (allowedRoles && user && !allowedRoles.includes(user.rolId))) {
-    return <div className="text-center mt-10">Cargando...</div>; // puedes usar un spinner aquí también
+  if (loading || !user) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-white">Cargando...</p>
+      </div>
+    );
   }
 
   return <>{children}</>;
