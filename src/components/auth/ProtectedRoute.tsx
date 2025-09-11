@@ -14,14 +14,16 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) return; // 👈 esperamos a que AuthProvider termine
 
-    if (!isAuthenticated) router.replace("/login");
-    else if (user && allowedRoles && !allowedRoles.includes(user.rolId))
+    if (!isAuthenticated) {
       router.replace("/login");
+    } else if (user && allowedRoles && !allowedRoles.includes(user.rolId)) {
+      router.replace("/login");
+    }
   }, [loading, isAuthenticated, user, allowedRoles, router]);
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p className="text-white">Cargando...</p>
@@ -29,5 +31,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     );
   }
 
+  // 👇 importante: no bloquear si `loading` terminó y hay usuario válido
   return <>{children}</>;
 };
