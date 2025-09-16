@@ -2,9 +2,10 @@
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Download, Upload, Calendar, DollarSign, Activity, Hash, Receipt, Calculator, X, Save, FileText, Edit, Trash2 } from 'lucide-react';
+import { Plus, Download, Upload, Calendar, DollarSign, Activity, Hash, Receipt, Calculator, X, Save, FileText, Edit, Trash2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import Header from "@/components/navbar/headerUser";
 import api from "@/services/api";
+import Image from "next/image";
 import axios from "axios";
 
 interface TransactionRow {
@@ -14,6 +15,7 @@ interface TransactionRow {
   actividad: string;
   codigo: string;
   cantidad: number;
+  voucher?: string; // <- nuevo campo (puede ser null/undefined)
 }
 
 interface FormData {
@@ -25,6 +27,234 @@ interface FormData {
   cantidad: string;
 }
 
+interface FormErrors {
+  fecha?: string;
+  tipo_de_cuenta?: string;
+  actividad?: string;
+  codigo?: string;
+  voucher?: string;
+  cantidad?: string;
+}
+
+// Componente Lightbox separado
+interface LightboxProps {
+  isOpen: boolean;
+  imageUrl: string;
+  onClose: () => void;
+  imageTitle?: string;
+}
+
+function Lightbox({ isOpen, imageUrl, onClose, imageTitle }: LightboxProps) {
+  const [scale, setScale] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Reset valores cuando se abre/cierra el lightbox
+  useEffect(() => {
+    if (isOpen) {
+      setScale(1);
+      setRotation(0);
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [isOpen]);
+
+  // Manejar teclas de escape y zoom
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          onClose();
+          break;
+        case '+':
+        case '=':
+          e.preventDefault();
+          zoomIn();
+          break;
+        case '-':
+          e.preventDefault();
+          zoomOut();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          rotate();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  // Prevenir scroll del body cuando el lightbox está abierto
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  const zoomIn = () => {
+    setScale(prev => Math.min(prev * 1.5, 5));
+  };
+
+  const zoomOut = () => {
+    setScale(prev => Math.max(prev / 1.5, 0.1));
+  };
+
+  const rotate = () => {
+    setRotation(prev => (prev + 90) % 360);
+  };
+
+  const resetImage = () => {
+    setScale(1);
+    setRotation(0);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale > 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y
+      });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && scale > 1) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center"
+      onClick={onClose}
+    >
+      {/* Controles superiores */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-3 bg-gray-800/90 backdrop-blur-md rounded-xl px-6 py-3 border border-gray-600/50">
+        <button
+          onClick={(e) => { e.stopPropagation(); zoomOut(); }}
+          className="p-2 text-white hover:text-cyan-400 hover:bg-gray-700/50 rounded-lg transition-colors"
+          title="Alejar (tecla: -)"
+        >
+          <ZoomOut className="w-5 h-5" />
+        </button>
+        
+        <span className="text-white text-sm font-mono min-w-[60px] text-center">
+          {Math.round(scale * 100)}%
+        </span>
+        
+        <button
+          onClick={(e) => { e.stopPropagation(); zoomIn(); }}
+          className="p-2 text-white hover:text-cyan-400 hover:bg-gray-700/50 rounded-lg transition-colors"
+          title="Acercar (tecla: +)"
+        >
+          <ZoomIn className="w-5 h-5" />
+        </button>
+        
+        <div className="w-px h-6 bg-gray-600"></div>
+        
+        <button
+          onClick={(e) => { e.stopPropagation(); rotate(); }}
+          className="p-2 text-white hover:text-cyan-400 hover:bg-gray-700/50 rounded-lg transition-colors"
+          title="Rotar (tecla: R)"
+        >
+          <RotateCw className="w-5 h-5" />
+        </button>
+        
+        <button
+          onClick={(e) => { e.stopPropagation(); resetImage(); }}
+          className="px-3 py-1 text-sm text-white hover:text-cyan-400 hover:bg-gray-700/50 rounded-lg transition-colors"
+          title="Restablecer vista"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* Botón cerrar */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 p-3 text-white hover:text-red-400 hover:bg-gray-800/50 rounded-full transition-colors"
+        title="Cerrar (Esc)"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
+      {/* Título de la imagen */}
+      {imageTitle && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-gray-800/90 backdrop-blur-md rounded-lg px-4 py-2 border border-gray-600/50">
+          <p className="text-white text-sm font-medium">{imageTitle}</p>
+        </div>
+      )}
+
+      {/* Contenedor de imagen */}
+      <div 
+        className="relative w-full h-full flex items-center justify-center overflow-hidden"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="relative transition-transform duration-200 ease-out"
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+          }}
+        >
+          <Image
+            src={imageUrl}
+            alt="Voucher ampliado"
+            width={800}
+            height={600}
+            className="object-contain max-w-full max-h-full rounded-lg shadow-2xl"
+            style={{ 
+              width: 'auto', 
+              height: 'auto',
+              maxWidth: '90vw',
+              maxHeight: '90vh'
+            }}
+            unoptimized
+            priority
+          />
+        </div>
+      </div>
+
+      {/* Instrucciones de uso */}
+      <div className="absolute bottom-4 right-4 z-10 bg-gray-800/80 backdrop-blur-md rounded-lg px-3 py-2 border border-gray-600/50">
+        <p className="text-gray-300 text-xs">
+          <span className="text-cyan-400">Esc:</span> Cerrar • 
+          <span className="text-cyan-400"> +/-:</span> Zoom • 
+          <span className="text-cyan-400"> R:</span> Rotar
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function IncomeExpenseTracker() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -36,6 +266,11 @@ function IncomeExpenseTracker() {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
+  // Estados para el lightbox
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState("");
+  const [lightboxImageTitle, setLightboxImageTitle] = useState("");
+  
   const [formData, setFormData] = useState<FormData>({
     fecha: new Date().toISOString().split('T')[0],
     tipo_de_cuenta: 'Ingreso',
@@ -45,7 +280,21 @@ function IncomeExpenseTracker() {
     cantidad: ''
   });
 
-  const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  // Función para abrir el lightbox
+  const openLightbox = (imageUrl: string, transaction: TransactionRow) => {
+    setLightboxImageUrl(imageUrl);
+    setLightboxImageTitle(`${transaction.actividad} - ${transaction.fecha}`);
+    setLightboxOpen(true);
+  };
+
+  // Función para cerrar el lightbox
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setLightboxImageUrl("");
+    setLightboxImageTitle("");
+  };
 
   // Verificar autenticación al montar
   useEffect(() => {
@@ -91,6 +340,30 @@ function IncomeExpenseTracker() {
       } else {
         setError('Error de conexión al servidor');
       }
+    }
+  };
+
+  // Nuevo estado para la URL de previsualización
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Función para manejar carga de archivos con preview
+  const handleFileUpload = (file: File | null) => {
+    if (file) {
+      // Validar que sea imagen
+      const validTypes = ['image/jpeg', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        setError("Solo se permiten imágenes PNG, JPG o GIF");
+        return;
+      }
+
+      handleInputChange('voucher', file);
+
+      // Crear URL temporal para previsualización
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      handleInputChange('voucher', null);
+      setPreviewUrl(null);
     }
   };
 
@@ -140,10 +413,13 @@ function IncomeExpenseTracker() {
 
   // Validación del formulario
   const validateForm = (): boolean => {
-    const newErrors: Partial<FormData> = {};
-    
+    const newErrors: FormErrors = {};
+
     if (!formData.fecha) newErrors.fecha = 'La fecha es requerida';
+    if (!formData.tipo_de_cuenta) newErrors.tipo_de_cuenta = 'El tipo de transacción es requerido';
     if (!formData.actividad.trim()) newErrors.actividad = 'La actividad es requerida';
+    if (!formData.codigo.trim()) newErrors.codigo = 'El código es requerido';
+    if (!formData.voucher) newErrors.voucher = 'El voucher es obligatorio';
     if (!formData.cantidad || parseFloat(formData.cantidad) <= 0) {
       newErrors.cantidad = 'La cantidad debe ser mayor a 0';
     }
@@ -242,11 +518,6 @@ function IncomeExpenseTracker() {
     }
   };
 
-  // Función para manejar carga de archivos
-  const handleFileUpload = (file: File | null) => {
-    handleInputChange('voucher', file);
-  };
-
   // Calcular totales (forzar a número)
   const ingresosTotales = transactions
     .filter(t => t.tipo_de_cuenta === 'Ingreso')
@@ -257,7 +528,6 @@ function IncomeExpenseTracker() {
     .reduce((sum, t) => sum + Number(t.cantidad || 0), 0);
 
   const diferencia = ingresosTotales - egresosTotales;
-
 
   // Exportar a Excel
   const exportToExcel = () => {
@@ -412,12 +682,18 @@ function IncomeExpenseTracker() {
                   <th className="px-6 py-4 text-center font-semibold text-cyan-400">
                     Acciones
                   </th>
+                  <th className="px-6 py-4 text-left font-semibold text-cyan-400">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4" />
+                      Voucher
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center text-gray-400">
+                    <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-4">
                         <FileText className="w-12 h-12 text-gray-500" />
                         <div>
@@ -464,6 +740,28 @@ function IncomeExpenseTracker() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {transaction.voucher ? (
+                          <div 
+                            className="relative w-16 h-16 overflow-hidden group cursor-pointer"
+                            onClick={() => openLightbox(transaction.voucher!, transaction)}
+                            title="Clic para ver en pantalla completa"
+                          >
+                            <Image
+                              src={transaction.voucher}
+                              alt="Voucher"
+                              fill
+                              className="object-cover rounded-lg border border-gray-600 transition-all duration-300 group-hover:border-cyan-400 group-hover:shadow-lg group-hover:shadow-cyan-500/20"
+                            />
+                            {/* Overlay con icono de zoom */}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all duration-300 flex items-center justify-center">
+                              <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">Sin imagen</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -602,27 +900,46 @@ function IncomeExpenseTracker() {
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   <Receipt className="w-4 h-4 inline mr-2" />
-                  Voucher / Comprobante (Opcional)
+                  Voucher / Comprobante (jpeg, jpg) <span className="text-red-400">*</span>
                 </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={(e) => handleFileUpload(e.target.files?.[0] || null)}
-                    accept="image/*,.pdf"
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    <Upload className="w-4 h-4" />
-                    {formData.voucher ? 'Cambiar archivo' : 'Seleccionar archivo'}
-                  </button>
-                  {formData.voucher && (
-                    <span className="text-sm text-green-400 truncate flex-1">
-                      {formData.voucher.name}
-                    </span>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={(e) => handleFileUpload(e.target.files?.[0] || null)}
+                      accept="image/jpeg,image/jpg"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      type="button"
+                      className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {formData.voucher ? 'Cambiar archivo' : 'Seleccionar archivo'}
+                    </button>
+                    {formData.voucher && (
+                      <span className="text-sm text-green-400 truncate flex-1">
+                        {formData.voucher.name}
+                      </span>
+                    )}
+                  </div>
+
+                  {errors.voucher && <p className="text-red-400 text-xs mt-1">{errors.voucher}</p>}
+
+                  {previewUrl && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
+                      <div className="relative w-full h-60">
+                        <Image
+                          src={previewUrl}
+                          alt="Vista previa del voucher"
+                          fill
+                          className="object-contain rounded-lg border border-gray-600"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -682,6 +999,14 @@ function IncomeExpenseTracker() {
           </div>
         </div>
       )}
+
+      {/* Lightbox Component */}
+      <Lightbox
+        isOpen={lightboxOpen}
+        imageUrl={lightboxImageUrl}
+        imageTitle={lightboxImageTitle}
+        onClose={closeLightbox}
+      />
     </div>
   );
 }
