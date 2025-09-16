@@ -1,39 +1,44 @@
 "use client";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import React, { useState, useRef } from 'react';
-import { Plus, Download, Upload, Calendar, DollarSign, Activity, Hash, Receipt, Calculator, X, Save, FileText } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Download, Upload, Calendar, DollarSign, Activity, Hash, Receipt, Calculator, X, Save, FileText, Edit, Trash2 } from 'lucide-react';
 import Header from "@/components/navbar/headerUser";
+import api from "@/services/api";
+import axios from "axios";
 
 interface TransactionRow {
-  id: string;
+  id: number;
   fecha: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo_de_cuenta: 'Ingreso' | 'Egreso';
   actividad: string;
   codigo: string;
-  voucher: File | null;
   cantidad: number;
 }
 
 interface FormData {
   fecha: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo_de_cuenta: 'Ingreso' | 'Egreso';
   actividad: string;
   codigo: string;
   voucher: File | null;
   cantidad: string;
 }
 
+
 function IncomeExpenseTracker() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
   const [formData, setFormData] = useState<FormData>({
     fecha: new Date().toISOString().split('T')[0],
-    tipo: 'ingreso',
+    tipo_de_cuenta: 'Ingreso',
     actividad: '',
     codigo: '',
     voucher: null,
@@ -42,32 +47,95 @@ function IncomeExpenseTracker() {
 
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
+  // Verificar autenticación al montar
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+
+    if (!token || !userData) {
+      window.location.href = '/login';
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userData);
+      if (user.rolId !== 2) {
+        window.location.href = '/login';
+        return;
+      }
+      setCheckingAuth(false);
+      fetchTransactions();
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+  }, []);
+
+  // Cargar transacciones con manejo de errores mejorado
+  const fetchTransactions = async () => {
+    try {
+      setError("");
+      const response = await api.get<TransactionRow[]>('/montos');
+      setTransactions(response.data);
+    } catch (err: unknown) {
+      console.error('Error al obtener transacciones:', err);
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        setError(err.response?.data?.error || 'Error al cargar las transacciones');
+      } else {
+        setError('Error de conexión al servidor');
+      }
+    }
+  };
+
   // Función para abrir modal
-  const openModal = () => {
+  const openModal = (transaction?: TransactionRow) => {
+    if (transaction) {
+      setEditingTransaction(transaction);
+      setFormData({
+        fecha: transaction.fecha,
+        tipo_de_cuenta: transaction.tipo_de_cuenta,
+        actividad: transaction.actividad,
+        codigo: transaction.codigo || '',
+        voucher: null,
+        cantidad: transaction.cantidad.toString()
+      });
+    } else {
+      setEditingTransaction(null);
+      setFormData({
+        fecha: new Date().toISOString().split('T')[0],
+        tipo_de_cuenta: 'Ingreso',
+        actividad: '',
+        codigo: '',
+        voucher: null,
+        cantidad: ''
+      });
+    }
     setShowModal(true);
-    setFormData({
-      fecha: new Date().toISOString().split('T')[0],
-      tipo: 'ingreso',
-      actividad: '',
-      codigo: '',
-      voucher: null,
-      cantidad: ''
-    });
     setErrors({});
+    setError("");
   };
 
   // Función para cerrar modal
   const closeModal = () => {
     setShowModal(false);
+    setEditingTransaction(null);
     setFormData({
       fecha: new Date().toISOString().split('T')[0],
-      tipo: 'ingreso',
+      tipo_de_cuenta: 'Ingreso',
       actividad: '',
       codigo: '',
       voucher: null,
       cantidad: ''
     });
     setErrors({});
+    setError("");
   };
 
   // Validación del formulario
@@ -76,7 +144,6 @@ function IncomeExpenseTracker() {
     
     if (!formData.fecha) newErrors.fecha = 'La fecha es requerida';
     if (!formData.actividad.trim()) newErrors.actividad = 'La actividad es requerida';
-    if (!formData.codigo.trim()) newErrors.codigo = 'El código es requerido';
     if (!formData.cantidad || parseFloat(formData.cantidad) <= 0) {
       newErrors.cantidad = 'La cantidad debe ser mayor a 0';
     }
@@ -85,28 +152,86 @@ function IncomeExpenseTracker() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Función para guardar transacción
+  // Función para guardar o actualizar transacción
   const saveTransaction = async () => {
     if (!validateForm()) return;
 
     setIsLoading(true);
+    setError("");
     
-    // Simular carga
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('fecha', formData.fecha);
+      formDataToSend.append('tipo_de_cuenta', formData.tipo_de_cuenta);
+      formDataToSend.append('actividad', formData.actividad.trim());
+      formDataToSend.append('codigo', formData.codigo.trim());
+      formDataToSend.append('cantidad', formData.cantidad);
+      
+      if (formData.voucher) {
+        formDataToSend.append('voucher', formData.voucher);
+      }
 
-    const newTransaction: TransactionRow = {
-      id: Date.now().toString(),
-      fecha: formData.fecha,
-      tipo: formData.tipo,
-      actividad: formData.actividad.trim(),
-      codigo: formData.codigo.trim(),
-      voucher: formData.voucher,
-      cantidad: parseFloat(formData.cantidad)
-    };
+      if (editingTransaction) {
+        // Actualizar transacción existente
+        await api.put(`/montos/${editingTransaction.id}`, formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      } else {
+        // Crear nueva transacción
+        await api.post('/montos', formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      }
 
-    setTransactions([...transactions, newTransaction]);
-    setIsLoading(false);
-    closeModal();
+      await fetchTransactions();
+      closeModal();
+
+    } catch (err: unknown) {
+      console.error('Error al guardar transacción:', err);
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        setError(err.response?.data?.error || 'Error al guardar la transacción');
+      } else {
+        setError('Error de conexión al servidor');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Función para eliminar transacción
+  const deleteTransaction = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta transacción?')) {
+      return;
+    }
+
+    try {
+      setError("");
+      await api.delete(`/montos/${id}`);
+      await fetchTransactions();
+    } catch (err: unknown) {
+      console.error('Error al eliminar transacción:', err);
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        setError(err.response?.data?.error || 'Error al eliminar la transacción');
+      } else {
+        setError('Error de conexión al servidor');
+      }
+    }
   };
 
   // Función para manejar cambios en el formulario
@@ -122,32 +247,32 @@ function IncomeExpenseTracker() {
     handleInputChange('voucher', file);
   };
 
-  // Calcular totales
+  // Calcular totales (forzar a número)
   const ingresosTotales = transactions
-    .filter(t => t.tipo === 'ingreso')
-    .reduce((sum, t) => sum + (t.cantidad || 0), 0);
-  
+    .filter(t => t.tipo_de_cuenta === 'Ingreso')
+    .reduce((sum, t) => sum + Number(t.cantidad || 0), 0);
+
   const egresosTotales = transactions
-    .filter(t => t.tipo === 'egreso')
-    .reduce((sum, t) => sum + (t.cantidad || 0), 0);
-  
+    .filter(t => t.tipo_de_cuenta === 'Egreso')
+    .reduce((sum, t) => sum + Number(t.cantidad || 0), 0);
+
   const diferencia = ingresosTotales - egresosTotales;
+
 
   // Exportar a Excel
   const exportToExcel = () => {
     if (transactions.length === 0) {
-      alert('No hay datos para exportar');
+      setError('No hay datos para exportar');
       return;
     }
     
     const csvContent = [
-      ['Fecha', 'Tipo', 'Actividad', 'Código', 'Voucher', 'Cantidad'],
+      ['Fecha', 'Tipo', 'Actividad', 'Código', 'Cantidad'],
       ...transactions.map(t => [
         t.fecha,
-        t.tipo.toUpperCase(),
+        t.tipo_de_cuenta.toUpperCase(),
         t.actividad,
-        t.codigo,
-        t.voucher ? t.voucher.name : 'Sin archivo',
+        t.codigo || '',
         t.cantidad
       ])
     ].map(row => row.join(',')).join('\n');
@@ -161,7 +286,7 @@ function IncomeExpenseTracker() {
   };
 
   // Efecto de mouse
-  React.useEffect(() => {
+  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({
         x: (e.clientX / window.innerWidth) * 100,
@@ -172,6 +297,11 @@ function IncomeExpenseTracker() {
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  // Early return si está verificando autenticación
+  if (checkingAuth) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
@@ -191,7 +321,6 @@ function IncomeExpenseTracker() {
         <div className="absolute top-1/2 left-1/4 w-28 h-28 border-2 border-purple-500/50 rounded-full animate-spin"></div>
       </div>
       
-
       {/* Grid técnico */}
       <div
         className="absolute inset-0 opacity-5"
@@ -213,11 +342,17 @@ function IncomeExpenseTracker() {
           </p>
         </div>
 
+        {/* Mostrar error general si existe */}
+        {error && (
+          <div className="mb-6 bg-red-500/20 text-red-400 text-sm rounded-xl p-4 border border-red-500/30">
+            {error}
+          </div>
+        )}
 
         {/* Botones superiores */}
         <div className="mb-6 flex flex-wrap gap-4 justify-between items-center">
           <button
-            onClick={openModal}
+            onClick={() => openModal()}
             className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold"
           >
             <Plus className="w-5 h-5" />
@@ -270,15 +405,12 @@ function IncomeExpenseTracker() {
                   </th>
                   <th className="px-6 py-4 text-left font-semibold text-cyan-400">
                     <div className="flex items-center gap-2">
-                      <Receipt className="w-4 h-4" />
-                      Voucher
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left font-semibold text-cyan-400">
-                    <div className="flex items-center gap-2">
                       <Calculator className="w-4 h-4" />
                       Cantidad
                     </div>
+                  </th>
+                  <th className="px-6 py-4 text-center font-semibold text-cyan-400">
+                    Acciones
                   </th>
                 </tr>
               </thead>
@@ -301,31 +433,37 @@ function IncomeExpenseTracker() {
                       <td className="px-6 py-4 text-sm">{transaction.fecha}</td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          transaction.tipo === 'ingreso' 
+                          transaction.tipo_de_cuenta === 'Ingreso' 
                             ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
                             : 'bg-red-500/20 text-red-400 border border-red-500/30'
                         }`}>
-                          {transaction.tipo.toUpperCase()}
+                          {transaction.tipo_de_cuenta.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm">{transaction.actividad}</td>
-                      <td className="px-6 py-4 text-sm font-mono">{transaction.codigo}</td>
+                      <td className="px-6 py-4 text-sm font-mono">{transaction.codigo || '-'}</td>
                       <td className="px-6 py-4">
-                        {transaction.voucher ? (
-                          <div className="flex items-center gap-2">
-                            <Receipt className="w-4 h-4 text-green-400" />
-                            <span className="text-xs text-green-400 truncate max-w-32">
-                              {transaction.voucher.name}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-500">Sin archivo</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`font-semibold ${transaction.tipo === 'ingreso' ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`font-semibold ${transaction.tipo_de_cuenta === 'Ingreso' ? 'text-green-400' : 'text-red-400'}`}>
                           ${transaction.cantidad.toFixed(2)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openModal(transaction)}
+                            className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(transaction.id)}
+                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -371,7 +509,9 @@ function IncomeExpenseTracker() {
           <div className="w-full max-w-md bg-gray-800/90 backdrop-blur-xl rounded-2xl border border-cyan-500/30 shadow-2xl transform transition-all duration-300 scale-100">
             {/* Header del Modal */}
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <h2 className="text-2xl font-bold text-cyan-400">Nueva Transacción</h2>
+              <h2 className="text-2xl font-bold text-cyan-400">
+                {editingTransaction ? 'Editar Transacción' : 'Nueva Transacción'}
+              </h2>
               <button
                 onClick={closeModal}
                 className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded-lg"
@@ -382,6 +522,13 @@ function IncomeExpenseTracker() {
 
             {/* Formulario */}
             <div className="p-6 space-y-4">
+              {/* Mostrar error del formulario si existe */}
+              {error && (
+                <div className="bg-red-500/20 text-red-400 text-sm rounded-md p-2 mb-4">
+                  {error}
+                </div>
+              )}
+
               {/* Fecha */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -406,12 +553,12 @@ function IncomeExpenseTracker() {
                   Tipo de Transacción
                 </label>
                 <select
-                  value={formData.tipo}
-                  onChange={(e) => handleInputChange('tipo', e.target.value as 'ingreso' | 'egreso')}
+                  value={formData.tipo_de_cuenta}
+                  onChange={(e) => handleInputChange('tipo_de_cuenta', e.target.value as 'Ingreso' | 'Egreso')}
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:border-cyan-400 focus:outline-none"
                 >
-                  <option value="ingreso">💰 Ingreso</option>
-                  <option value="egreso">💸 Egreso</option>
+                  <option value="Ingreso">Ingreso</option>
+                  <option value="Egreso">Egreso</option>
                 </select>
               </div>
 
@@ -437,7 +584,7 @@ function IncomeExpenseTracker() {
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   <Hash className="w-4 h-4 inline mr-2" />
-                  Código de Referencia
+                  Código de Referencia (Opcional)
                 </label>
                 <input
                   type="text"
@@ -474,7 +621,7 @@ function IncomeExpenseTracker() {
                   </button>
                   {formData.voucher && (
                     <span className="text-sm text-green-400 truncate flex-1">
-                      📄 {formData.voucher.name}
+                      {formData.voucher.name}
                     </span>
                   )}
                 </div>
@@ -522,12 +669,12 @@ function IncomeExpenseTracker() {
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    Guardando...
+                    {editingTransaction ? 'Actualizando...' : 'Guardando...'}
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Guardar Transacción
+                    {editingTransaction ? 'Actualizar Transacción' : 'Guardar Transacción'}
                   </>
                 )}
               </button>

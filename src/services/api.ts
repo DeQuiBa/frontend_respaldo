@@ -1,3 +1,4 @@
+// src/services/api.ts
 import axios from 'axios';
 
 const api = axios.create({
@@ -6,6 +7,18 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Interceptor de request: agrega el token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token"); // o desde cookies
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Interceptor de respuesta
 api.interceptors.response.use(

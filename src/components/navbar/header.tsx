@@ -137,8 +137,10 @@ export default function Header() {
 
         {/* Menú móvil */}
         <div
-          className={`lg:hidden transition-all duration-500 ease-in-out overflow-hidden z-40 relative ${
-            isMenuOpen ? "max-h-screen opacity-100 bg-gray-900/90 backdrop-blur-lg" : "max-h-0 opacity-0"
+          className={`lg:hidden transition-all duration-500 ease-in-out z-40 relative ${
+            isMenuOpen
+              ? "max-h-screen opacity-100 bg-gray-900/90 backdrop-blur-lg"
+              : "hidden"
           }`}
         >
           <nav className="px-6 py-6 flex flex-col items-center gap-4 text-center">
@@ -146,6 +148,7 @@ export default function Header() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={() => setIsMenuOpen(false)} // ✅ cierra menú al navegar
                 className={`w-full block text-lg font-semibold tracking-wide rounded-lg py-3 transition-colors ${
                   isActiveLink(link.href)
                     ? "text-cyan-400"
@@ -159,13 +162,17 @@ export default function Header() {
             <div className="w-full flex flex-col items-center gap-3 pt-6 border-t border-cyan-500/20">
               <Link
                 href="/login"
+                onClick={() => setIsMenuOpen(false)} // ✅ cierra menú al logearse
                 className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-blue-400 hover:to-cyan-400 text-white px-5 py-3 rounded-xl font-semibold shadow-[0_0_12px_rgba(0,255,255,0.4)]"
               >
                 <UserCheck size={18} />
                 Logearse
               </Link>
               <button
-                onClick={() => setShowRegisterModal(true)}
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setShowRegisterModal(true);
+                }}
                 className="w-full flex justify-center items-center gap-2 border border-cyan-400 text-cyan-400 hover:bg-cyan-500 hover:text-white px-5 py-3 rounded-xl font-semibold transition-all"
               >
                 <UserPlus size={18} />
@@ -174,7 +181,6 @@ export default function Header() {
             </div>
           </nav>
         </div>
-
 
         {/* Fondo oscuro detrás del menú */}
         {isMenuOpen && (
