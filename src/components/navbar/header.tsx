@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, UserCheck, UserPlus } from "lucide-react";
+import { Menu, X, UserCheck,  } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import EncargadoModal from "@/components/modal/registrarModal";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -23,13 +21,6 @@ export default function Header() {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    document.body.style.overflow = isMenuOpen || showRegisterModal ? "hidden" : "unset";
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isMenuOpen, showRegisterModal]);
-
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   const navLinks = [{ href: "/", label: "Inicio" }];
@@ -37,10 +28,6 @@ export default function Header() {
   const isActiveLink = (href: string) => {
     if (!pathname) return false;
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
-  };
-
-  const handleRegisterSubmit = (email: string, password: string) => {
-    alert(`Registrado con éxito: ${email} con clave: ${password}`);
   };
 
   return (
@@ -113,13 +100,6 @@ export default function Header() {
                   <UserCheck size={16} />
                   Logearse
                 </Link>
-                <button
-                  onClick={() => setShowRegisterModal(true)}
-                  className="flex items-center gap-2 border border-cyan-400 text-cyan-400 hover:bg-cyan-500 hover:text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                >
-                  <UserPlus size={16} />
-                  Registrar
-                </button>
               </div>
 
               {/* Botón menú móvil */}
@@ -168,16 +148,6 @@ export default function Header() {
                 <UserCheck size={18} />
                 Logearse
               </Link>
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  setShowRegisterModal(true);
-                }}
-                className="w-full flex justify-center items-center gap-2 border border-cyan-400 text-cyan-400 hover:bg-cyan-500 hover:text-white px-5 py-3 rounded-xl font-semibold transition-all"
-              >
-                <UserPlus size={18} />
-                Registrar
-              </button>
             </div>
           </nav>
         </div>
@@ -190,13 +160,6 @@ export default function Header() {
           />
         )}
       </header>
-
-      {/* Modal */}
-      <EncargadoModal
-        show={showRegisterModal}
-        onClose={() => setShowRegisterModal(false)}
-        onSubmit={handleRegisterSubmit}
-      />
     </>
   );
 }
