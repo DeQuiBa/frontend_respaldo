@@ -72,7 +72,7 @@ export default function Header() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-lg text-cyan-400 group-hover:text-cyan-300 tracking-wider">
-                    SISGEFI-DK
+                    MASHA-SGF
                   </span>
                   <span className="text-xs text-gray-400 hidden sm:block">
                     Pantalla Principal

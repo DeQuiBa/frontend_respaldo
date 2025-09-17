@@ -66,7 +66,7 @@ const SuccessModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
 export default function PerfilPage() {
   const [user, setUser] = useState<UserData | null>(null);
-  const [comites, setComites] = useState<Comite[]>([]);
+  const [, setComites] = useState<Comite[]>([]); 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
@@ -314,29 +314,6 @@ export default function PerfilPage() {
               />
             </div>
 
-            {/* Comité */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-                <Shield className="w-4 h-4 inline mr-2" />
-                Comité (Opcional)
-              </label>
-              <select
-                name="comiteId"
-                value={form.comiteId}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-cyan-500 focus:ring-offset-1 focus:ring-offset-gray-900 focus:border-transparent transition-all duration-300"
-              >
-                <option value="">Sin comité asignado</option>
-                {comites.map((comite) => (
-                  <option key={comite.id} value={comite.id}>
-                    {comite.nombre}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-400 mt-2">
-                Selecciona el comité al que perteneces
-              </p>
-            </div>
 
             {/* Información de solo lectura */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -359,7 +336,7 @@ export default function PerfilPage() {
                 <p className="text-white font-medium text-lg">
                   {user.comiteNombre || 'Sin comité asignado'}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Se puede modificar arriba</p>
+                <p className="text-xs text-gray-400 mt-1">No se puede modificar</p>
               </div>
             </div>
 

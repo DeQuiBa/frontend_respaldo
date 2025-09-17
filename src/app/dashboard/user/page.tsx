@@ -7,6 +7,9 @@ import Header from "@/components/navbar/headerUser";
 import api from "@/services/api";
 import Image from "next/image";
 import axios from "axios";
+import ExcelJS from "exceljs";
+import Footer from "@/components/footer/footer";
+import { saveAs } from "file-saver";
 
 interface TransactionRow {
   id: number;
@@ -88,7 +91,7 @@ function Lightbox({ isOpen, imageUrl, onClose, imageTitle }: LightboxProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  },  [isOpen, onClose]);
 
   // Prevenir scroll del body cuando el lightbox está abierto
   useEffect(() => {
@@ -147,10 +150,10 @@ function Lightbox({ isOpen, imageUrl, onClose, imageTitle }: LightboxProps) {
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center"
-      onClick={onClose}
-    >
+      <div 
+        className="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-md flex items-center justify-center"
+        onClick={onClose}
+      >
       {/* Controles superiores */}
       <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-3 bg-gray-800/90 backdrop-blur-md rounded-xl px-6 py-3 border border-gray-600/50">
         <button
@@ -530,30 +533,94 @@ function IncomeExpenseTracker() {
   const diferencia = ingresosTotales - egresosTotales;
 
   // Exportar a Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (transactions.length === 0) {
-      setError('No hay datos para exportar');
+      setError("No hay datos para exportar");
       return;
     }
-    
-    const csvContent = [
-      ['Fecha', 'Tipo', 'Actividad', 'Código', 'Cantidad'],
-      ...transactions.map(t => [
-        t.fecha,
-        t.tipo_de_cuenta.toUpperCase(),
-        t.actividad,
-        t.codigo || '',
-        t.cantidad
-      ])
-    ].map(row => row.join(',')).join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `control_financiero_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Transacciones");
+
+    // Cabeceras
+    worksheet.columns = [
+      { header: "Fecha", key: "fecha", width: 15 },
+      { header: "Tipo", key: "tipo_de_cuenta", width: 12 },
+      { header: "Actividad", key: "actividad", width: 25 },
+      { header: "Código", key: "codigo", width: 15 },
+      { header: "Cantidad", key: "cantidad", width: 12 },
+      { header: "Voucher", key: "voucher", width: 30 },
+    ];
+
+    let totalIngresos = 0;
+    let totalEgresos = 0;
+
+    // Filas + imágenes
+    for (const t of transactions) {
+      if (!t.fecha && !t.tipo_de_cuenta && !t.actividad && !t.codigo && !t.cantidad) {
+        continue;
+      }
+
+      const row = worksheet.addRow({
+        fecha: t.fecha ? t.fecha.split("T")[0] : "",
+        tipo_de_cuenta: t.tipo_de_cuenta || "",
+        actividad: t.actividad || "",
+        codigo: t.codigo || "",
+        cantidad: t.cantidad || "",
+      });
+
+      // Acumular totales
+      const cantidad = Number(t.cantidad) || 0;
+      if (t.tipo_de_cuenta?.toLowerCase() === "ingreso") {
+        totalIngresos += cantidad;
+      } else if (t.tipo_de_cuenta?.toLowerCase() === "egreso") {
+        totalEgresos += cantidad;
+      }
+
+      if (t.voucher) {
+        try {
+          const res = await fetch(t.voucher);
+          const blob = await res.blob();
+          const buffer = await blob.arrayBuffer();
+
+          const imageId = workbook.addImage({
+            buffer: buffer,
+            extension: "png", // o "jpeg"
+          });
+
+          worksheet.addImage(imageId, {
+            tl: { col: 5, row: row.number - 1 },
+            ext: { width: 100, height: 60 },
+          });
+        } catch (err) {
+          console.error("No se pudo cargar voucher:", err);
+        }
+      }
+    }
+
+    // Línea vacía de separación
+    worksheet.addRow([]);
+
+    // Resumen
+    const diferencia = totalIngresos - totalEgresos;
+    worksheet.addRow(["", "", "INGRESOS TOTALES", "", "", totalIngresos]);
+    worksheet.addRow(["", "", "EGRESOS", "", "", totalEgresos]);
+    worksheet.addRow(["", "", "DIFERENCIA", "", "", diferencia]);
+
+    // Negrita al resumen
+    const last3 = worksheet.lastRow!.number;
+    [last3 - 2, last3 - 1, last3].forEach((rowNum) => {
+      worksheet.getRow(rowNum).font = { bold: true };
+    });
+
+    // Generar archivo y descargar
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(
+      new Blob([buffer]),
+      `control_financiero_${new Date().toISOString().split("T")[0]}.xlsx`
+    );
   };
+
 
   // Efecto de mouse
   useEffect(() => {
@@ -706,7 +773,13 @@ function IncomeExpenseTracker() {
                 ) : (
                   transactions.map((transaction, index) => (
                     <tr key={transaction.id} className={`border-b border-gray-700 hover:bg-gray-700/30 transition-colors ${index % 2 === 0 ? 'bg-gray-800/20' : 'bg-gray-800/40'}`}>
-                      <td className="px-6 py-4 text-sm">{transaction.fecha}</td>
+                      <td className="px-6 py-4 text-sm">
+                        {new Date(transaction.fecha).toLocaleDateString("es-PE", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit"
+                        })}
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           transaction.tipo_de_cuenta === 'Ingreso' 
@@ -998,6 +1071,7 @@ function IncomeExpenseTracker() {
             </div>
           </div>
         </div>
+        
       )}
 
       {/* Lightbox Component */}
@@ -1007,6 +1081,10 @@ function IncomeExpenseTracker() {
         imageTitle={lightboxImageTitle}
         onClose={closeLightbox}
       />
+      {/* Footer */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Footer />
+      </div>
     </div>
   );
 }

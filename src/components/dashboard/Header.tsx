@@ -1,151 +1,116 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { HelpCircle, User, Menu, Sun, Moon, LogOut } from 'lucide-react';
-import { useTheme } from './themeProvider';
-import { useAuth } from '@/context/authContext';
-import Link from 'next/link';
+import Link from "next/link";
+import { LogOut, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
-interface HeaderProps {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-  title?: string;
+interface UserData {
+  id: number;
+  nombre: string;
+  rol: string;
+  rolId: number;
+  correo: string;
 }
 
-const roleNames: Record<number, string> = {
-  1: 'Administrador',
-  2: 'Recepcionista',
-  3: 'Paciente',
-  4: 'Odontólogo',
-};
-
-export default function Header({ sidebarOpen, setSidebarOpen, title = 'Dashboard' }: HeaderProps) {
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    setUserMenuOpen(false);
-  };
+export default function DashboardNavbar() {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    }
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-    if (userMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) setUser(JSON.parse(userData));
+  }, [pathname]);
 
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [userMenuOpen]);
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.replace("/login");
+  };
 
   return (
-    <header className="sticky top-0 z-30 header-style backdrop-blur-md border-b">
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Left side */}
-          <div className="flex items-center">
-            <button
-              className="text-secondary hover:text-primary lg:hidden mr-4"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Abrir menú"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="text-xl font-semibold text-primary">{title}</h1>
-          </div>
+    <header
+      className={`fixed w-full top-0 z-50 transition-all duration-500 ${
+        isScrolled
+          ? "bg-gray-900/70 backdrop-blur-xl border-b border-cyan-500/20 shadow-[0_0_15px_rgba(0,255,255,0.3)]"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
 
-          {/* Right side */}
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={toggleTheme}
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full transition-colors"
-              aria-label={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
-            >
-              {theme === 'light' ? (
-                <Moon className="w-4 h-4 text-secondary" />
-              ) : (
-                <Sun className="w-4 h-4 text-secondary" />
-              )}
-            </button>
+          {/* Logo a la izquierda */}
+          <span className="text-lg font-bold text-cyan-400 truncate"></span>
 
-            <Link
-              href="https://wa.me/12345678900"
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full transition-colors"
-              aria-label="Ayuda"
-            >
-              <HelpCircle className="w-4 h-4 text-secondary" />
-            </Link>
-
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
-
+          {/* Menú Desktop */}
+          <div className="hidden sm:flex items-center gap-4">
             {user && (
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  className="flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg p-2 transition-colors"
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  aria-label="Menú de usuario"
-                  aria-expanded={userMenuOpen}
-                >
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="hidden md:block text-right">
-                    <p className="text-sm font-medium text-gray dark:text-gray">
-                      {user.primer_nombre} {user.apellido_paterno}
-                    </p>
-                    <p className="text-xs font-medium text-gray dark:text-gray">
-                      {roleNames[user.rolId] || 'Usuario'}
-                    </p>
-                  </div>
-                </button>
-
-                {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 z-50">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {user.primer_nombre} {user.apellido_paterno}
-                      </p>
-                      <p className="text-xs text-gray dark:text-gray-100">
-                        {roleNames[user.rolId] || 'Usuario'}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <Link
-                        href="/dashboard/home"
-                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md block"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Inicio
-                      </Link>
-                      <Link
-                        href="/profile"
-                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md block"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Mi Perfil
-                      </Link>
-                      <hr className="my-1 border-gray-200 dark:border-gray-700" />
-                      <button
-                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
-                        onClick={handleLogout}
-                      >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Cerrar Sesión
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <span className="text-sm font-semibold text-cyan-400 truncate max-w-[150px]">
+                👤 {user.nombre}
+              </span>
             )}
+            <Link
+              href="/dashboard/perfilAdmin"
+              className="text-sm font-semibold text-gray-300 hover:text-cyan-300 transition truncate max-w-[100px]"
+            >
+              Perfil
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition-all text-white"
+            >
+              <LogOut size={16} />
+              <span className="truncate">Cerrar sesión</span>
+            </button>
           </div>
+
+          {/* Botón Menú Hamburguesa Móvil a la derecha */}
+          <div className="sm:hidden flex items-center justify-end flex-1">
+            <button
+              className="p-2 rounded-md text-cyan-400 hover:bg-gray-800 transition ml-auto"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              {menuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Menú Móvil */}
+      <div
+        className={`sm:hidden fixed inset-x-0 top-16 bg-gray-900/95 backdrop-blur-md px-4 py-4 border-t border-cyan-500/20 transform transition-transform duration-300 ${
+          menuOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="flex flex-col space-y-3">
+          {user && (
+            <span className="text-sm font-semibold text-cyan-400 truncate max-w-full">
+              👤 {user.nombre}
+            </span>
+          )}
+          <Link
+            href="/dashboard/perfilAdmin"
+            onClick={() => setMenuOpen(false)}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-300 hover:text-cyan-300 hover:bg-gray-800/60 transition truncate"
+          >
+            Perfil
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition-all text-white"
+          >
+            <LogOut size={16} />
+            Cerrar sesión
+          </button>
         </div>
       </div>
     </header>
