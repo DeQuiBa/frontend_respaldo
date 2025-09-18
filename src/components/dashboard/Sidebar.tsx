@@ -8,23 +8,18 @@ import {
   Home,
   User,
   Calendar,
-  Save,
   FileText,
   HelpCircle,
   LogOut,
   Users,
   X,
-  Stethoscope,
-  Clock,
-  Workflow,
   ChevronLeft,
   ChevronRight,
-  BookOpenIcon,
   PieChart,
   Rocket,
   Menu
 } from "lucide-react";
-import { MdEmail } from "react-icons/md";
+
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -67,15 +62,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       { href: "/dashboard/EditUsers", icon: <User size={18} />, label: "CRUD", group: "Administrativo", roles: [1]},
       { href: "/dashboard/register", icon: <FileText size={18} />, label: "Registrar", group: "Administrativo", roles: [1]},
       { href: "/dashboard/comite", icon: <Users size={18} />, label: "Comite", group: "Gestiones", roles: [1] },
-      { href: "/dashboard/specialties", icon: <BookOpenIcon size={18} />, label: "Especialidades", group: "Gestiones", roles: [1] },
-      { href: "/dashboard/treatments", icon: <Stethoscope size={18} />, label: "Tratamientos", group: "Gestiones", roles: [1] },
-      { href: "/dashboard/sendEmail", icon: <MdEmail size={18} />, label: "Correo", group: "Gestiones", roles: [1, 2] },
-      { href: "/dashboard/statistics", icon: <PieChart size={18} />, label: "Estadísitcas", group: "Gestiones", roles: [1, 2] },
-      { href: "/dashboard/dentists", icon: <User size={18} />, label: "Crear", group: "Configuración odontologo", roles: [1, 2] },
-      { href: "/dashboard/designationSpecialties", icon: <Stethoscope size={18} />, label: "Especialidades", group: "Configuración odontologo", roles: [1, 2] },
-      { href: "/dashboard/schedules", icon: <Clock size={18} />, label: "Turnos", group: "Configuración odontologo", roles: [1, 2] },
-      { href: "/dashboard/nonWorkingDays", icon: <Workflow size={18} />, label: "No laborables", group: "Configuración odontologo", roles: [1, 2] },
-      { href: "/dashboard/generateSchedules", icon: <Save size={18} />, label: "Generar horario", group: "Configuración odontologo", roles: [1, 2] },
+      { href: "/dashboard/graficos", icon: <PieChart size={18} />, label: "Gráficos", group: "Gestiones", roles: [1] },
       { href: "https://wa.me/314113180", icon: <HelpCircle size={18} />, label: "Ayuda", roles: [1, 2, 3, 4] }
     ];
 
